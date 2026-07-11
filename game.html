@@ -211,7 +211,7 @@
 <script>
     // --- 1. LIFF & ユーザー情報 ---
     let lineUser = { name: "ゲストユーザー", avatar: "https://placehold.co/100x100/444/fff?text=U" };
-    liff.init({ liffId: "YOUR_LIFF_ID_HERE" }).then(() => {
+    liff.init({ liffId: "2010670138-k7bECXaC" }).then(() => {
         if (liff.isLoggedIn()) { liff.getProfile().then(profile => { lineUser.name = profile.displayName; lineUser.avatar = profile.pictureUrl; }); }
     }).catch(err => console.error(err));
 
