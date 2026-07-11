@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kuma-nyo's Calculator</title>
+    <!-- LINE LIFF SDK の読み込み -->
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        body {
+            background-color: #f5f5f7;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .user-info {
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+        .user-info img {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        .calculator {
+            background-color: #ffffff;
+            border-radius: 24px;
+            padding: 24px;
+            width: 100%;
+            max-width: 340px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        }
+        .display {
+            width: 100%;
+            height: 80px;
+            background-color: #f5f5f7;
+            border: none;
+            border-radius: 12px;
+            text-align: right;
+            padding: 20px;
+            font-size: 32px;
+            color: #1d1d1f;
+            margin-bottom: 20px;
+        }
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        button {
+            height: 60px;
+            border-radius: 12px;
+            border: none;
+            font-size: 20px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            background-color: #f5f5f7;
+            color: #1d1d1f;
+        }
+        button:active {
+            background-color: #e8e8ed;
+        }
+        button.operator {
+            background-color: #ff9f0a;
+            color: white;
+        }
+        button.operator:active {
+            background-color: #e08b08;
+        }
+        button.clear {
+            background-color: #e8e8ed;
+            color: #ff3b30;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ログインした人のLINE情報を出すエリア -->
+    <div class="user-info" id="userInfo">
+        LINE連携を読み込み中...
+    </div>
+
+    <!-- 電卓本体 -->
+    <div class="calculator">
+        <input type="text" class="display" id="display" readonly value="0">
+        <div class="buttons">
+            <button class="clear" onclick="clearDisplay()">C</button>
+            <button onclick="appendOperator('/')">÷</button>
+            <button onclick="appendOperator('*')">×</button>
+            <button class="operator" onclick="deleteLast()">⌫</button>
+            
+            <button onclick="appendNumber('7')">7</button>
+            <button onclick="appendNumber('8')">8</button>
+            <button onclick="appendNumber('9')">9</button>
+            <button class="operator" onclick="appendOperator('-')">-</button>
+            
+            <button onclick="appendNumber('4')">4</button>
+            <button onclick="appendNumber('5')">5</button>
+            <button onclick="appendNumber('6')">6</button>
+            <button class="operator" onclick="appendOperator('+')">+</button>
+            
+            <button onclick="appendNumber('1')">1</button>
+            <button onclick="appendNumber('2')">2</button>
+            <button onclick="appendNumber('3')">3</button>
+            <button class="operator" style="grid-row: span 2; height: 132px;" onclick="calculate()">=</button>
+            
+            <button style="grid-column: span 2;" onclick="appendNumber('0')">0</button>
+            <button onclick="appendNumber('.')">.</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. LINE LIFFの初期化設定 ---
+        // あなたの「LIFF ID」に書き換えてください（例: "1234567890-XXXXXXXX"）
+        const MY_LIFF_ID = "YOUR_LIFF_ID_HERE"; 
+
+        async function initLIFF() {
+            try {
+                await liff.init({ liffId: MY_LIFF_ID });
+                if (liff.isLoggedIn()) {
+                    const profile = await liff.getProfile();
+                    document.getElementById('userInfo').innerHTML = `
+                        <img src="${profile.pictureUrl}" alt="icon">
+                        <span>ユーザー: ${profile.displayName}</span>
+                    `;
+                } else {
+                    // LINEアプリ外（普通のブラウザ）で開かれた場合はログインを促す
+                    liff.login();
+                }
+            } catch (error) {
+                console.error("LIFFの初期化に失敗しました", error);
+                document.getElementById('userInfo').innerText = "テスト環境（ブラウザ閲覧中）";
+            }
+        }
+        initLIFF();
+
+        // --- 2. 電卓のロジック ---
+        const display = document.getElementById('display');
+        let isCalculated = false;
+
+        function appendNumber(num) {
+            if (display.value === '0' || isCalculated) {
+                display.value = num;
+                isCalculated = false;
+            } else {
+                display.value += num;
+            }
+        }
+
+        function appendOperator(op) {
+            isCalculated = false;
+            const lastChar = display.value.slice(-1);
+            if (['+', '-', '*', '/'].includes(lastChar)) {
+                display.value = display.value.slice(0, -1) + op;
+            } else {
+                display.value += op;
+            }
+        }
+
+        function clearDisplay() {
+            display.value = '0';
+        }
+
+        function deleteLast() {
+            if (display.value.length > 1) {
+                display.value = display.value.slice(0, -1);
+            } else {
+                display.value = '0';
+            }
+        }
+
+        function calculate() {
+            try {
+                // 安全な簡易計算のために Function を使用
+                const result = new Function(`return ${display.value}`)();
+                display.value = Number(result.toFixed(8)).toString(); // 浮動小数点の誤差対策
+                isCalculated = true;
+            } catch (error) {
+                display.value = 'Error';
+            }
+        }
+    </script>
+</body>
+</html>
