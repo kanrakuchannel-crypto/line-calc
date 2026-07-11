@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>LINE TETRIS</title>
+    <!-- LINEのLIFF SDK -->
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        html, body {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #1a1a1a;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            touch-action: none;
+        }
+        h1 { margin: 8px 0 2px 0; font-size: 20px; letter-spacing: 1px; }
+        #score-board { font-size: 16px; margin-bottom: 5px; font-weight: bold; color: #00ffcc; }
+        
+        .main-layout {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            justify-content: space-between;
+            padding-bottom: env(safe-area-inset-bottom);
+            box-sizing: border-box;
+        }
+
+        .game-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 12px;
+            width: 320px;
+            margin: 0 auto;
+            flex-grow: 1;
+        }
+        canvas {
+            background: #000;
+            border: 3px solid #333;
+            border-radius: 4px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            max-height: 48vh; 
+            cursor: pointer;
+        }
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: #ffcc00;
+        }
+        #nextCanvas {
+            background: #000;
+            border: 2px solid #444;
+            margin-top: 4px;
+            border-radius: 4px;
+        }
+
+        /* オーバーレイ画面 */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10; /* ゲームオーバーUI等は10 */
+            border-radius: 4px;
+        }
+        #gameover-screen { display: none; }
+        .overlay h2 { font-size: 26px; margin-bottom: 15px; color: #ff3333; text-shadow: 0 0 8px rgba(255,0,0,0.5); }
+        #start-screen h2 { color: #00ffcc; text-shadow: 0 0 8px rgba(0,255,200,0.5); }
+
+        /* トロフィーボタン */
+        .trophy-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #2a2a2a;
+            border: 2px solid #ffcc00;
+            border-radius: 50%;
+            width: 42px;
+            height: 42px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(255,204,0,0.4);
+            z-index: 11; /* ゲームオーバーUI(10)より手前に配置 */
+        }
+
+        /* ランキング画面 */
+        #ranking-screen { display: none; background: rgba(15, 15, 15, 0.98); z-index: 12; }
+        #ranking-screen h2 { color: #ffcc00; margin: 10px 0; font-size: 22px; }
+        .ranking-list { width: 92%; max-height: 220px; overflow-y: auto; margin-bottom: 15px; padding: 0; list-style: none; }
+        .ranking-item { display: flex; align-items: center; padding: 8px 10px; margin: 5px 0; background: #222; border-radius: 6px; border-left: 4px solid #444; font-size: 13px; }
+        .rank-1 { border-left-color: #ffd700; background: rgba(255, 215, 0, 0.1); color: #ffd700; }
+        .rank-2 { border-left-color: #c0c0c0; background: rgba(192, 192, 192, 0.1); color: #e0e0e0; }
+        .rank-3 { border-left-color: #cd7f32; background: rgba(205, 127, 50, 0.1); color: #f4a460; }
+        .rank-4th { border-left-color: #4da6ff; color: #b3d9ff; }
+        .rank-num { width: 38px; font-weight: bold; display: flex; align-items: center; }
+        .user-avatar { width: 22px; height: 22px; border-radius: 50%; margin-right: 8px; object-fit: cover; background: #444; }
+        .user-name { flex-grow: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .user-score { font-weight: bold; color: #00ffcc; }
+
+        /* バーチャルコントローラー */
+        .dpad-container {
+            width: 100%;
+            max-width: 360px;
+            margin: 0 auto;
+            padding: 10px 15px 20px 15px;
+            box-sizing: border-box;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 10px;
+            background: #111;
+            border-top: 2px solid #2a2a2a;
+        }
+        .pad-btn {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 12px;
+            padding: 18px 0;
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: pointer;
+            box-shadow: 0 3px 0 #151515;
+        }
+        .pad-btn:active {
+            background: #3a3a3a;
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #151515;
+        }
+        .pad-btn.action {
+            background: #334d66;
+            border-color: #4da6ff;
+            color: #4da6ff;
+        }
+        .pad-btn.action:active { background: #405e7c; }
+
+        .action-btn { background: #00b900; border: none; color: white; padding: 14px 28px; font-size: 16px; border-radius: 25px; margin: 8px 0; width: 190px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer; }
+        .action-btn:active { transform: scale(0.98); background: #009900; }
+        .action-btn.secondary { background: #444; border: 1px solid #666; }
+    </style>
+</head>
+<body>
+
+<div class="main-layout">
+    <div>
+        <h1>LINE TETRIS</h1>
+        <div id="score-board">SCORE: <span id="score">0</span></div>
+    </div>
+    
+    <div class="game-container">
+        <canvas id="tetris" width="200" height="400"></canvas>
+        
+        <div class="side-panel">
+            <div>NEXT</div>
+            <canvas id="nextCanvas" width="60" height="60"></canvas>
+        </div>
+
+        <div class="trophy-badge" id="open-ranking-btn">🏆</div>
+
+        <!-- 各種画面 -->
+        <div id="start-screen" class="overlay">
+            <h2>READY?</h2>
+            <button class="action-btn" id="start-btn">ゲームスタート</button>
+        </div>
+
+        <div id="ranking-screen" class="overlay">
+            <h2>🏆 MY HISTORY</h2>
+            <ul class="ranking-list" id="ranking-list-container"></ul>
+            <button class="action-btn secondary" id="close-ranking-btn" style="width: 120px; padding: 8px;">戻る</button>
+        </div>
+
+        <div id="gameover-screen" class="overlay">
+            <h2>GAME OVER</h2>
+            <button class="action-btn" id="retry-btn">もう一度</button>
+            <button class="action-btn secondary" id="close-btn">LINEトークへ</button>
+        </div>
+    </div>
+
+    <div class="dpad-container">
+        <div class="pad-btn" id="pad-left">◀</div>
+        <div class="pad-btn action" id="pad-rotate">🔄 回転</div>
+        <div class="pad-btn" id="pad-right">▶</div>
+        <div class="pad-btn" id="pad-down" style="grid-column: span 3; padding: 12px 0; font-size: 15px; background: #222;">▼ ゆっくり落とす (長押し・ホールド可)</div>
+    </div>
+</div>
+
+<script>
+    // --- 1. LIFF & ユーザー情報 ---
+    let lineUser = { name: "ゲストユーザー", avatar: "https://placehold.co/100x100/444/fff?text=U" };
+    liff.init({ liffId: "YOUR_LIFF_ID_HERE" }).then(() => {
+        if (liff.isLoggedIn()) { liff.getProfile().then(profile => { lineUser.name = profile.displayName; lineUser.avatar = profile.pictureUrl; }); }
+    }).catch(err => console.error(err));
+
+    // --- 2. ゲーム本体 ---
+    const canvas = document.getElementById('tetris');
+    const context = canvas.getContext('2d');
+    context.scale(20, 20);
+    const nextCanvas = document.getElementById('nextCanvas');
+    const nextContext = nextCanvas.getContext('2d');
+    nextContext.scale(15, 15);
+
+    const arena = Array.from({length: 20}, () => Array(10).fill(0));
+    let isPlaying = false;
+    const colors = [null, '#ff3333', '#33ff33', '#00ffff', '#ffaa00', '#3333ff', '#ffff30', '#a000ff'];
+    const player = { pos: {x: 0, y: 0}, matrix: null, nextMatrix: null, score: 0 };
+
+    function createPiece(type) {
+        if (type === 'I') return [[0,3,0,0],[0,3,0,0],[0,3,0,0],[0,3,0,0]];
+        if (type === 'L') return [[0,4,0],[0,4,0],[0,4,4]];
+        if (type === 'J') return [[0,5,0],[0,5,0],[5,5,0]];
+        if (type === 'O') return [[6,6],[6,6]];
+        if (type === 'Z') return [[1,1,0],[0,1,1],[0,0,0]];
+        if (type === 'S') return [[0,2,2],[2,2,0],[0,0,0]];
+        if (type === 'T') return [[0,7,0],[7,7,7],[0,0,0]];
+    }
+
+    function playerReset() {
+        const pieces = 'ILJOZST';
+        if (!player.nextMatrix) player.nextMatrix = createPiece(pieces[pieces.length * Math.random() | 0]);
+        player.matrix = player.nextMatrix;
+        player.nextMatrix = createPiece(pieces[pieces.length * Math.random() | 0]);
+        player.pos.y = 0;
+        player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
+
+        if (collide(arena, player)) {
+            isPlaying = false;
+            saveScoreToHistory(player.score);
+            document.getElementById('gameover-screen').style.display = 'flex';
+            document.getElementById('open-ranking-btn').style.display = 'flex'; // ゲームオーバー時に再表示
+        }
+        drawNext();
+    }
+
+    // --- 3. ジェスチャー & マウスドラッグ共通ロジック ---
+    let startX = 0;
+    let startY = 0;
+    let isMouseDown = false;
+
+    function handleStart(x, y) {
+        if (!isPlaying) return;
+        startX = x;
+        startY = y;
+        isMouseDown = true;
+    }
+
+    function handleEnd(x, y) {
+        if (!isPlaying || !isMouseDown) return;
+        isMouseDown = false;
+        
+        const diffX = x - startX;
+        const diffY = y - startY;
+
+        if (diffY > 60 && Math.abs(diffX) < 40) {
+            while (!collide(arena, player)) { player.pos.y++; }
+            player.pos.y--;
+            merge(arena, player);
+            arenaSweep();
+            playerReset();
+        } 
+        else if (Math.abs(diffX) < 10 && Math.abs(diffY) < 10) {
+            playerRotate();
+        }
+    }
+
+    canvas.addEventListener('touchstart', e => { handleStart(e.touches[0].clientX, e.touches[0].clientY); }, {passive: true});
+    canvas.addEventListener('touchend', e => { handleEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY); }, {passive: true});
+    canvas.addEventListener('mousedown', e => { handleStart(e.clientX, e.clientY); });
+    canvas.addEventListener('mouseup', e => { handleEnd(e.clientX, e.clientY); });
+    canvas.addEventListener('mouseleave', () => { isMouseDown = false; });
+
+    // --- 4. バーチャルボタンのイベント処理 ---
+    let downInterval;
+
+    const bindBtn = (id, actionStart, actionEnd = null) => {
+        const el = document.getElementById(id);
+        el.addEventListener('touchstart', e => { e.preventDefault(); actionStart(); }, {passive: false});
+        el.addEventListener('mousedown', e => { e.preventDefault(); actionStart(); });
+
+        if (actionEnd) {
+            el.addEventListener('touchend', e => { e.preventDefault(); actionEnd(); }, {passive: false});
+            el.addEventListener('touchcancel', e => { e.preventDefault(); actionEnd(); }, {passive: false});
+            el.addEventListener('mouseup', e => { e.preventDefault(); actionEnd(); });
+            el.addEventListener('mouseleave', e => { e.preventDefault(); actionEnd(); });
+        }
+    };
+
+    bindBtn('pad-left', () => playerMove(-1));
+    bindBtn('pad-right', () => playerMove(1));
+    bindBtn('pad-rotate', () => playerRotate());
+    bindBtn('pad-down', 
+        () => { playerDrop(); clearInterval(downInterval); downInterval = setInterval(playerDrop, 100); }, 
+        () => { clearInterval(downInterval); }
+    );
+
+    // --- ランキングロジック ---
+    function saveScoreToHistory(score) {
+        if (score === 0) return;
+        let myHistory = JSON.parse(localStorage.getItem('my_tetris_history')) || [];
+        myHistory.push({ name: lineUser.name, avatar: lineUser.avatar, score: score });
+        myHistory.sort((a, b) => b.score - a.score);
+        localStorage.setItem('my_tetris_history', JSON.stringify(myHistory.slice(0, 10)));
+    }
+
+    function displayRanking() {
+        const container = document.getElementById('ranking-list-container');
+        container.innerHTML = '';
+        const myHistory = JSON.parse(localStorage.getItem('my_tetris_history')) || [];
+        if (myHistory.length === 0) {
+            container.innerHTML = `<li style="text-align:center; padding: 20px; color:#aaa; font-size:12px;">まだ記録がありません。<br>ゲームをプレイしてハイスコアを目指そう！</li>`;
+            return;
+        }
+        myHistory.forEach((data, i) => {
+            const li = document.createElement('li');
+            li.className = 'ranking-item';
+            let rankClass = 'rank-4th'; let trophy = '🏆';
+            if (i === 0) { rankClass = 'rank-1'; trophy = '🥇'; }
+            else if (i === 1) { rankClass = 'rank-2'; trophy = '🥈'; }
+            else if (i === 2) { rankClass = 'rank-3'; trophy = '🥉'; }
+            li.classList.add(rankClass);
+            const avatarSrc = data.avatar || `https://placehold.co/50x50/333/fff?text=${data.name.charAt(0)}`;
+            li.innerHTML = `<div class="rank-num">${trophy}${i+1}</div><img class="user-avatar" src="${avatarSrc}"><div class="user-name">${data.name}</div><div class="user-score">${data.score}</div>`;
+            container.appendChild(li);
+        });
+    }
+
+    // 基本ゲームシステム
+    function drawNext() {
+        nextContext.fillStyle = '#000'; nextContext.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+        const matrix = player.nextMatrix;
+        const xOffset = (4 - matrix[0].length) / 2; const yOffset = (4 - matrix.length) / 2;
+        matrix.forEach((row, y) => { row.forEach((value, x) => { if (value !== 0) { nextContext.fillStyle = colors[value]; nextContext.fillRect(x + xOffset, y + yOffset, 1, 1); } }); });
+    }
+    function arenaSweep() {
+        let rowCount = 1;
+        outer: for (let y = arena.length - 1; y > 0; --y) {
+            for (let x = 0; x < arena[y].length; ++x) { if (arena[y][x] === 0) continue outer; }
+            const row = arena.splice(y, 1)[0].fill(0); arena.unshift(row); ++y;
+            player.score += rowCount * 100; rowCount *= 2;
+        }
+        updateScore();
+    }
+    function updateScore() { document.getElementById('score').innerText = player.score; }
+    function collide(arena, player) {
+        const [m, o] = [player.matrix, player.pos];
+        for (let y = 0; y < m.length; ++y) { for (let x = 0; x < m[y].length; ++x) { if (m[y][x] !== 0) { if (!arena[y + o.y] || arena[y + o.y][x + o.x] !== 0) return true; } } }
+        return false;
+    }
+    function merge(arena, player) { player.matrix.forEach((row, y) => { row.forEach((value, x) => { if (value !== 0) arena[y + player.pos.y][x + player.pos.x] = value; }); }); }
+    function playerMove(dir) { if (!isPlaying) return; player.pos.x += dir; if (collide(arena, player)) player.pos.x -= dir; }
+    function playerDrop() { if (!isPlaying) return; player.pos.y++; if (collide(arena, player)) { player.pos.y--; merge(arena, player); arenaSweep(); playerReset(); } dropCounter = 0; }
+    function rotate(matrix) {
+        for (let y = 0; y < matrix.length; ++y) { for (let x = 0; x < y; ++x) { [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]]; } }
+        matrix.forEach(row => row.reverse());
+    }
+    function playerRotate() {
+        if (!isPlaying) return; const pos = player.pos.x; let offset = 1; rotate(player.matrix);
+        while (collide(arena, player)) { player.pos.x += offset; offset = -(offset + (offset > 0 ? 1 : -1)); if (offset > player.matrix[0].length) { rotate(player.matrix); player.pos.x = pos; return; } }
+    }
+    function drawMatrix(matrix, offset) { matrix.forEach((row, y) => { row.forEach((value, x) => { if (value !== 0) { context.fillStyle = colors[value]; context.fillRect(x + offset.x, y + offset.y, 1, 1); } }); }); }
+    
+    // アウト判定のデッドラインを描画する関数
+    function drawDeadline() {
+        context.strokeStyle = '#ff3333';
+        context.lineWidth = 0.08;
+        context.setLineDash([0.2, 0.2]); // 破線スタイル
+        context.beginPath();
+        context.moveTo(0, 1); // 盤面の上から1行目の位置に線を引く
+        context.lineTo(10, 1);
+        context.stroke();
+        context.setLineDash([]); // スタイルをリセット
+    }
+
+    function draw() {
+        context.fillStyle = '#000'; context.fillRect(0, 0, canvas.width, canvas.height);
+        drawMatrix(arena, {x: 0, y: 0});
+        if (isPlaying && player.matrix) drawMatrix(player.matrix, player.pos);
+        drawDeadline(); // 常にデッドラインを描画
+    }
+
+    let dropCounter = 0; let lastTime = 0;
+    function update(time = 0) {
+        const deltaTime = time - lastTime; lastTime = time;
+        if (isPlaying) { dropCounter += deltaTime; if (dropCounter > 1000) playerDrop(); }
+        draw(); requestAnimationFrame(update);
+    }
+
+    function startGame() {
+        arena.forEach(row => row.fill(0)); player.score = 0; updateScore();
+        player.nextMatrix = null; playerReset();
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('gameover-screen').style.display = 'none';
+        document.getElementById('open-ranking-btn').style.display = 'none'; // プレイ中はトロフィーを非表示
+        isPlaying = true;
+    }
+
+    // UI開閉用
+    document.getElementById('start-btn').addEventListener('click', startGame);
+    document.getElementById('retry-btn').addEventListener('click', startGame);
+    document.getElementById('close-btn').addEventListener('click', () => { liff.closeWindow(); });
+    document.getElementById('open-ranking-btn').addEventListener('click', () => { displayRanking(); document.getElementById('ranking-screen').style.display = 'flex'; });
+    document.getElementById('close-ranking-btn').addEventListener('click', () => { document.getElementById('ranking-screen').style.display = 'none'; });
+
+    update();
+</script>
+</body>
+</html>
